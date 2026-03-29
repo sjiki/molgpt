@@ -50,19 +50,19 @@ def safe_mol_properties(mol):
     props = {'qed': None, 'sas': None, 'logp': None, 'tpsa': None}
     try:
         props['qed'] = QED.qed(mol)
-    except Exception as e:
+    except (ValueError, RuntimeError, AttributeError) as e:
         logger.debug("QED calculation failed: %s", e)
     try:
         props['sas'] = sascorer.calculateScore(mol)
-    except Exception as e:
+    except (ValueError, RuntimeError, AttributeError) as e:
         logger.debug("SAS calculation failed: %s", e)
     try:
         props['logp'] = Crippen.MolLogP(mol)
-    except Exception as e:
+    except (ValueError, RuntimeError, AttributeError) as e:
         logger.debug("LogP calculation failed: %s", e)
     try:
         props['tpsa'] = CalcTPSA(mol)
-    except Exception as e:
+    except (ValueError, RuntimeError, AttributeError) as e:
         logger.debug("TPSA calculation failed: %s", e)
     return props
 
@@ -250,32 +250,31 @@ if __name__ == '__main__':
 
             results = pd.DataFrame(mol_dict)
 
-            # metrics = moses.get_all_metrics(gen_smiles)
-            # metrics['temperature'] = temp
-
-            # with open(f'gen_csv/moses_metrics_7_top10.json', 'w') as file:
-            #       json.dump(metrics, file)
-
-            canon_smiles = [canonic_smiles(s) for s in results['smiles']]
-            unique_smiles = list(set(canon_smiles))
-            if 'moses' in args.data_name:
-                    novel_ratio = check_novelty(unique_smiles, set(data[data['split']=='train']['smiles']))   # replace 'source' with 'split' for moses
+            if results.empty:
+                logger.warning("No valid molecules generated.")
+                all_dfs.append(results)
             else:
-                    novel_ratio = check_novelty(unique_smiles, set(data[data['source']=='train']['smiles']))   # replace 'source' with 'split' for moses
+
+                canon_smiles = [canonic_smiles(s) for s in results['smiles']]
+                unique_smiles = list(set(canon_smiles))
+                if 'moses' in args.data_name:
+                        novel_ratio = check_novelty(unique_smiles, set(data[data['split']=='train']['smiles']))   # replace 'source' with 'split' for moses
+                else:
+                        novel_ratio = check_novelty(unique_smiles, set(data[data['source']=='train']['smiles']))   # replace 'source' with 'split' for moses
 
 
-            print('Valid ratio: ', np.round(len(results)/(args.batch_size*gen_iter), 3))
-            print('Unique ratio: ', np.round(len(unique_smiles)/len(results), 3))
-            print('Novelty ratio: ', np.round(novel_ratio/100, 3))
+                print('Valid ratio: ', np.round(len(results)/(args.batch_size*gen_iter), 3))
+                print('Unique ratio: ', np.round(len(unique_smiles)/len(results), 3))
+                print('Novelty ratio: ', np.round(novel_ratio/100, 3))
 
-            
-            prop_cols = results['molecule'].apply(safe_mol_properties).apply(pd.Series)
-            results[['qed', 'sas', 'logp', 'tpsa']] = prop_cols[['qed', 'sas', 'logp', 'tpsa']]
-            # results['temperature'] = temp
-            results['validity'] = np.round(len(results)/(args.batch_size*gen_iter), 3)
-            results['unique'] = np.round(len(unique_smiles)/len(results), 3)
-            results['novelty'] = np.round(novel_ratio/100, 3)
-            all_dfs.append(results)
+                
+                prop_cols = results['molecule'].apply(safe_mol_properties).apply(pd.Series)
+                results[['qed', 'sas', 'logp', 'tpsa']] = prop_cols[['qed', 'sas', 'logp', 'tpsa']]
+                # results['temperature'] = temp
+                results['validity'] = np.round(len(results)/(args.batch_size*gen_iter), 3)
+                results['unique'] = np.round(len(unique_smiles)/len(results), 3)
+                results['novelty'] = np.round(novel_ratio/100, 3)
+                all_dfs.append(results)
 
         
         elif (prop_condition is not None) and (scaf_condition is None):
@@ -313,11 +312,9 @@ if __name__ == '__main__':
 
                 results = pd.DataFrame(mol_dict)
 
-                # metrics = moses.get_all_metrics(gen_smiles)
-                # metrics['temperature'] = temp
-
-                # with open(f'gen_csv/moses_metrics_7_top10.json', 'w') as file:
-                #       json.dump(metrics, file)
+                if results.empty:
+                    logger.warning("No valid molecules generated for condition %s.", c)
+                    continue
 
                 canon_smiles = [canonic_smiles(s) for s in results['smiles']]
                 unique_smiles = list(set(canon_smiles))
@@ -381,11 +378,9 @@ if __name__ == '__main__':
 
                 results = pd.DataFrame(mol_dict)
 
-                # metrics = moses.get_all_metrics(gen_smiles)
-                # metrics['temperature'] = temp
-
-                # with open(f'gen_csv/moses_metrics_7_top10.json', 'w') as file:
-                #       json.dump(metrics, file)
+                if results.empty:
+                    logger.warning("No valid molecules generated for scaffold %s.", j)
+                    continue
 
                 canon_smiles = [canonic_smiles(s) for s in results['smiles']]
                 unique_smiles = list(set(canon_smiles))
@@ -449,11 +444,9 @@ if __name__ == '__main__':
 
                     results = pd.DataFrame(mol_dict)
 
-                    # metrics = moses.get_all_metrics(gen_smiles)
-                    # metrics['temperature'] = temp
-
-                    # with open(f'gen_csv/moses_metrics_7_top10.json', 'w') as file:
-                    #       json.dump(metrics, file)
+                    if results.empty:
+                        logger.warning("No valid molecules generated for scaffold %s, condition %s.", j, c)
+                        continue
 
                     canon_smiles = [canonic_smiles(s) for s in results['smiles']]
                     unique_smiles = list(set(canon_smiles))
