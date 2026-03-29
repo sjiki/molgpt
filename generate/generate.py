@@ -252,7 +252,6 @@ if __name__ == '__main__':
 
             if results.empty:
                 logger.warning("No valid molecules generated.")
-                all_dfs.append(results)
             else:
 
                 canon_smiles = [canonic_smiles(s) for s in results['smiles']]

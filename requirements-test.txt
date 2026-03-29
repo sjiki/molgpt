@@ -1,0 +1,9 @@
+# Test dependencies (torch is installed separately in CI to get CPU-only build;
+# molsets/moses is shimmed in tests/conftest.py so it is not required here)
+rdkit
+pandas
+numpy
+matplotlib
+seaborn
+tqdm
+pytest
