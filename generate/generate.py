@@ -17,8 +17,8 @@ from moses.utils import get_mol
 import re
 import moses
 import json
+import logging
 from rdkit.Chem import RDConfig
-import json
 
 import os
 import sys
@@ -27,6 +27,44 @@ sys.path.append(os.path.join(RDConfig.RDContribDir, 'SA_Score'))
 import sascorer
 
 from rdkit.Chem.rdMolDescriptors import CalcTPSA
+
+logger = logging.getLogger(__name__)
+
+
+def safe_mol_properties(mol):
+    """Safely compute molecular properties for an RDKit mol object.
+
+    Parameters
+    ----------
+    mol : rdkit.Chem.rdchem.Mol
+        A valid RDKit molecule object.
+
+    Returns
+    -------
+    dict
+        A dictionary with keys 'qed' (float or None), 'sas' (float or None),
+        'logp' (float or None), and 'tpsa' (float or None).
+        Any property that cannot be computed is set to None instead of
+        raising an exception and aborting the entire generation run.
+    """
+    props = {'qed': None, 'sas': None, 'logp': None, 'tpsa': None}
+    try:
+        props['qed'] = QED.qed(mol)
+    except Exception as e:
+        logger.debug("QED calculation failed: %s", e)
+    try:
+        props['sas'] = sascorer.calculateScore(mol)
+    except Exception as e:
+        logger.debug("SAS calculation failed: %s", e)
+    try:
+        props['logp'] = Crippen.MolLogP(mol)
+    except Exception as e:
+        logger.debug("LogP calculation failed: %s", e)
+    try:
+        props['tpsa'] = CalcTPSA(mol)
+    except Exception as e:
+        logger.debug("TPSA calculation failed: %s", e)
+    return props
 
 
 # python generate.py --model_weight guacamol_nocond_new.pt --data_name guacamol2 --csv_name guacamol_temp1_nocond_30k --gen_size 1000 --vocab_size 94 --block_size 100
@@ -125,7 +163,7 @@ if __name__ == '__main__':
         model = GPT(mconf)
 
 
-        model.load_state_dict(torch.load(args.model_weight))
+        model.load_state_dict(torch.load(args.model_weight, weights_only=True))
         model.to('cuda')
         print('Model loaded')
 
@@ -231,10 +269,8 @@ if __name__ == '__main__':
             print('Novelty ratio: ', np.round(novel_ratio/100, 3))
 
             
-            results['qed'] = results['molecule'].apply(lambda x: QED.qed(x) )
-            results['sas'] = results['molecule'].apply(lambda x: sascorer.calculateScore(x))
-            results['logp'] = results['molecule'].apply(lambda x: Crippen.MolLogP(x) )
-            results['tpsa'] = results['molecule'].apply(lambda x: CalcTPSA(x) )
+            prop_cols = results['molecule'].apply(safe_mol_properties).apply(pd.Series)
+            results[['qed', 'sas', 'logp', 'tpsa']] = prop_cols[['qed', 'sas', 'logp', 'tpsa']]
             # results['temperature'] = temp
             results['validity'] = np.round(len(results)/(args.batch_size*gen_iter), 3)
             results['unique'] = np.round(len(unique_smiles)/len(results), 3)
@@ -304,10 +340,8 @@ if __name__ == '__main__':
                 else:
                         results['condition'] = str((c[0], c[1], c[2]))
                         
-                results['qed'] = results['molecule'].apply(lambda x: QED.qed(x) )
-                results['sas'] = results['molecule'].apply(lambda x: sascorer.calculateScore(x))
-                results['logp'] = results['molecule'].apply(lambda x: Crippen.MolLogP(x) )
-                results['tpsa'] = results['molecule'].apply(lambda x: CalcTPSA(x) )
+                prop_cols = results['molecule'].apply(safe_mol_properties).apply(pd.Series)
+                results[['qed', 'sas', 'logp', 'tpsa']] = prop_cols[['qed', 'sas', 'logp', 'tpsa']]
                 # results['temperature'] = temp
                 results['validity'] = np.round(len(results)/(args.batch_size*gen_iter), 3)
                 results['unique'] = np.round(len(unique_smiles)/len(results), 3)
@@ -369,10 +403,8 @@ if __name__ == '__main__':
                 
                         
                 results['scaffold_cond'] = j
-                results['qed'] = results['molecule'].apply(lambda x: QED.qed(x) )
-                results['sas'] = results['molecule'].apply(lambda x: sascorer.calculateScore(x))
-                results['logp'] = results['molecule'].apply(lambda x: Crippen.MolLogP(x) )
-                results['tpsa'] = results['molecule'].apply(lambda x: CalcTPSA(x) )
+                prop_cols = results['molecule'].apply(safe_mol_properties).apply(pd.Series)
+                results[['qed', 'sas', 'logp', 'tpsa']] = prop_cols[['qed', 'sas', 'logp', 'tpsa']]
                 # results['temperature'] = temp
                 results['validity'] = np.round(len(results)/(args.batch_size*gen_iter), 3)
                 results['unique'] = np.round(len(unique_smiles)/len(results), 3)
@@ -446,10 +478,8 @@ if __name__ == '__main__':
                             results['condition'] = str((c[0], c[1], c[2]))
                             
                     results['scaffold_cond'] = j
-                    results['qed'] = results['molecule'].apply(lambda x: QED.qed(x) )
-                    results['sas'] = results['molecule'].apply(lambda x: sascorer.calculateScore(x))
-                    results['logp'] = results['molecule'].apply(lambda x: Crippen.MolLogP(x) )
-                    results['tpsa'] = results['molecule'].apply(lambda x: CalcTPSA(x) )
+                    prop_cols = results['molecule'].apply(safe_mol_properties).apply(pd.Series)
+                    results[['qed', 'sas', 'logp', 'tpsa']] = prop_cols[['qed', 'sas', 'logp', 'tpsa']]
                     # results['temperature'] = temp
                     results['validity'] = np.round(len(results)/(args.batch_size*gen_iter), 3)
                     results['unique'] = np.round(len(unique_smiles)/len(results), 3)
